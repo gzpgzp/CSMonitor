@@ -12,7 +12,7 @@ import monitor_service
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
 ws_url = "ws://127.0.0.1:3000/ws"
-token = "8F_ksKmuKuM198sF"
+token = "07xQUqq18.rLfo5h"
 target_group_id = "620195557"
 self_id = "2092836515"
 debug = False
