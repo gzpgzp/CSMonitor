@@ -12,10 +12,11 @@ import monitor_service
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
 ws_url = "ws://127.0.0.1:3000/ws"
-token = "6d201e6c5819"
+token = "8F_ksKmuKuM198sF"
 target_group_id = "620195557"
 self_id = "2092836515"
 debug = False
+_ws_connected_once = False
 
 def start_ws():
     ws = websocket.WebSocketApp(
@@ -26,8 +27,8 @@ def start_ws():
         on_close=on_close,
         on_open=on_open
     )
-    # 阻塞运行
-    ws.run_forever()
+    # 阻塞运行，每20秒发一次ping心跳防止空闲超时断开
+    ws.run_forever(ping_interval=20, ping_timeout=10)
 
 def on_message(ws, message):
     try:
@@ -47,7 +48,12 @@ def on_close(ws, close_status_code, close_msg):
     start_ws()
     
 def on_open(ws):
-    print("[WS CONNECTED] 机器人已连接")
+    global _ws_connected_once
+    if not _ws_connected_once:
+        print("[WS CONNECTED] 机器人已连接")
+        _ws_connected_once = True
+    else:
+        print("[WS RECONNECTED] 机器人已重新连接")
 
 def send_msg(message):
     if debug:

@@ -5,7 +5,7 @@ import sys
 import threading
 import time
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 from enum import Enum
 
@@ -76,9 +76,6 @@ class MonitorService:
         # 在售数量通知控制
         self.sell_num_last_notify = {}
 
-        # 历史小时价格
-        self.hourly_prices = {}
-
         # 参数
         self.warning_percent = 0.05
         self.change_percent = 0.05
@@ -106,8 +103,7 @@ class MonitorService:
         self.sell_watch_ids: set = set()
         self._load_sell_watch()
 
-        # 缓存
-        self.hourly_cache = {}
+
 
     # ========================
     # 启动 / 停止
@@ -155,10 +151,6 @@ class MonitorService:
 
                 # 本轮结束，统一发送汇总消息
                 self._flush_msg_buffer(index)
-
-                # 持久化小时价格缓存 & 清理超过7天的旧数据
-                self.flush_cache()
-                self._cleanup_hourly_cache()
 
                 print(f"[Monitor] 第{index}轮结束\n")
                 index += 1
@@ -208,7 +200,6 @@ class MonitorService:
         s = self.state[item_id]
         if s["high"]["price"] is None or s["low"]["price"] is None:
             self._update_trend(item_id, price)
-            self._update_hourly(item_id, price)
             return
 
         self._update_trend(item_id, price)
@@ -216,8 +207,6 @@ class MonitorService:
         self._check_up_break(item_id, price, name, need_notify)
         self._check_callback(item_id, price, name, need_notify)
         self._check_follow(item_id, price, name, need_notify)
-
-        self._update_hourly(item_id, price)
 
         # 在售数量监控（已移至独立线程 _sell_num_scan_loop）
         # if sell_num is not None:
@@ -679,39 +668,6 @@ class MonitorService:
         except Exception:
             traceback.print_exc()
 
-    # ========================
-    # IO缓存
-    # ========================
-    def _update_hourly(self, item_id, price):
-        if item_id not in self.hourly_cache:
-            data = storage.load_json(
-                f"data/{item_id}_prices_hourly_last.json"
-            ) or {}
-            self.hourly_cache[item_id] = data
-
-        key = datetime.now().strftime("%Y-%m-%d %H")
-
-        self.hourly_cache[item_id][key] = {
-            "time": self._now(),
-            "price": price
-        }
-
-    def flush_cache(self):
-        for item_id, data in self.hourly_cache.items():
-            storage.save_json(
-                f"data/{item_id}_prices_hourly_last.json",
-                data
-            )
-
-    def _cleanup_hourly_cache(self):
-        """清理 hourly_cache 中超过7天的旧条目，防止内存无限增长"""
-        cutoff = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d %H")
-        for item_id in list(self.hourly_cache.keys()):
-            data = self.hourly_cache[item_id]
-            stale_keys = [k for k in data if k < cutoff]
-            for k in stale_keys:
-                del data[k]
-
     def _cleanup_stale_sell_states(self, active_ids):
         """清理已不在 All_item.json 中的物品的在售状态，释放内存"""
         removed_count = 0
@@ -823,7 +779,6 @@ class MonitorService:
             if result is None or now_price is None:
                 continue
 
-            self.hourly_prices[item_id] = result
             data_list = self._dict_to_sorted_list(result)
             peak = self._find_last_peak(data_list)
             trough = self._find_last_trough(data_list)
@@ -842,7 +797,6 @@ class MonitorService:
         if result is None or now_price is None:
             return f"初始化 {name} 历史数据失败"
 
-        self.hourly_prices[item_id] = result
         self.curr_price[item_id] = now_price
 
         data_list = self._dict_to_sorted_list(result)
