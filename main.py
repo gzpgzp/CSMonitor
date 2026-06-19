@@ -9,6 +9,7 @@ import threading
 def run():    
     config.init_config()
     crawler.init()
+    robot.load_group_ids()
      
     threading.Thread(target=robot.start_ws).start()
      
@@ -18,6 +19,10 @@ def run():
     svc = monitor_service.MonitorService(config.items_id)
     monitor_service.service = svc
     svc.start(5)
+
+    # 主线程保持运行，防止程序退出
+    while True:
+        time.sleep(60)
 
 if __name__ == "__main__":
     run()
