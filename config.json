@@ -1,0 +1,6 @@
+{
+    "api_token": "LYPLI1A7T76335R0S285A1K4",
+    "check_interval": 60,
+    "alert_rise": 0.05,
+    "alert_drop": 0.05
+}
