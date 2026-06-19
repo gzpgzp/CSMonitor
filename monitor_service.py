@@ -141,8 +141,7 @@ class MonitorService:
                 with self.lock:
                     items = list(self.items)
 
-                self.curr_price = {}
-                self.curr_sell_num = {}
+                # 不清空curr_price，保留上一轮价格，本轮查到的会覆盖
                 self._rise_buffer = []
                 self._drop_buffer = []
 
