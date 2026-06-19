@@ -180,6 +180,7 @@ class MonitorService:
     def process_item(self, item_id, need_notify):
         info = self._safe_api_call(lambda: crawler.get_item_info(item_id))
         if not info or 'goods_info' not in info:
+            self.curr_price[item_id] = 0
             return
 
         goods = info.get('goods_info', {})
@@ -187,6 +188,7 @@ class MonitorService:
         sell_num = goods.get("yyyp_sell_num")
 
         if price is None:
+            self.curr_price[item_id] = 0
             return
 
         name = config.get_item_name(item_id)
@@ -1088,13 +1090,15 @@ class MonitorService:
         reply = "监控列表如下：\n"
         for key, value in config.items_id_to_name.items():
             msg = f"{value}，现价："
-            if key in self.curr_price:
-                msg += f"{self.curr_price[key]}"
+            price = self.curr_price.get(key, 0)
+            if price > 0:
+                msg += f"{price}"
             else:
-                msg += f"别急好吗牢大，这个饰品的价格还没更新过，等个几分钟"
+                msg += f"获取失败"
             # 在售数量
-            if key in self.curr_sell_num:
-                msg += f"，在售：{self.curr_sell_num[key]}"
+            sell = self.curr_sell_num.get(key, 0)
+            if sell > 0:
+                msg += f"，在售：{sell}"
             msg += "\n"
             reply += msg
         return reply
