@@ -15,6 +15,8 @@ import qq_robot
 import storage
 from monitor_context import special_monitor_context
 
+base_dir = os.path.dirname(os.path.abspath(__file__))
+
 
 class Trend(Enum):
     UP = 1
@@ -591,38 +593,22 @@ class MonitorService:
                         continue
                     self._scan_sell_num_item(item_id, item_name, not first_round)
 
-                # 本轮结束，发送在售报告（激增/锐减分两条消息，默认各发前10条）
+                # 本轮结束，生成并发送 CSV 报告
                 if not first_round:
                     time_str = self._now()
 
-                    # 先保存完整报告（无论是否有内容）
+                    # 生成 CSV 文件
+                    csv_path = self._generate_sell_csv(time_str)
+                    if csv_path:
+                        # 发送 CSV 文件到在售监控群
+                        qq_robot.send_sell_file(csv_path, f"在售监控报告.csv")
+
+                    # 保存完整报告供 .checksell 命令查询
                     inc_msgs = self._group_sell_buffer(self._sell_buffer, True)
                     dec_msgs = self._group_sell_buffer(self._sell_buffer, False)
                     self._last_sell_report["time"] = time_str
                     self._last_sell_report["increase"] = inc_msgs
                     self._last_sell_report["decrease"] = dec_msgs
-
-                    # 有告警发报告，没告警发提示
-                    if inc_msgs or dec_msgs:
-                        # 激增报告
-                        if inc_msgs:
-                            show = inc_msgs[:2]
-                            more = len(inc_msgs) - 2
-                            header = f"📦 在售激增报告 ({time_str})\n{'═' * 22}"
-                            body = ("\n───────────\n").join(show)
-                            footer = f"\n───────────\n...还有{more}条，发送 .checksell all 查看全部" if more > 0 else ""
-                            qq_robot.send_msg(f"{header}\n{body}{footer}")
-
-                        # 锐减报告
-                        if dec_msgs:
-                            show = dec_msgs[:2]
-                            more = len(dec_msgs) - 2
-                            header = f"🔥 在售锐减报告 ({time_str})\n{'═' * 22}"
-                            body = ("\n───────────\n").join(show)
-                            footer = f"\n───────────\n...还有{more}条，发送 .checksell all 查看全部" if more > 0 else ""
-                            qq_robot.send_msg(f"{header}\n{body}{footer}")
-                    else:
-                        print(f"[SellScan] 第{scan_index}轮结束，无异常")
 
                 # 清理已不在 All_item.json 中的旧状态
                 active_ids = {str(item.get("id", "")) for item in all_items}
@@ -886,14 +872,14 @@ class MonitorService:
             self._rise_buffer.sort(key=lambda x: x[0], reverse=True)
             header = f"📈 涨幅报告 ({time_str})\n{'═' * 18}"
             body = ("\n───────────\n").join(msg for _, msg in self._rise_buffer)
-            qq_robot.send_msg(f"{header}\n{body}")
+            qq_robot.send_price_msg(f"{header}\n{body}")
 
         # 第二条：跌幅报告（按跌幅从大到小排序）
         if self._drop_buffer:
             self._drop_buffer.sort(key=lambda x: x[0], reverse=True)
             header = f"⚠️ 跌幅报告 ({time_str})\n{'═' * 18}"
             body = ("\n───────────\n").join(msg for _, msg in self._drop_buffer)
-            qq_robot.send_msg(f"{header}\n{body}")
+            qq_robot.send_price_msg(f"{header}\n{body}")
 
     def _now(self):
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -927,6 +913,63 @@ class MonitorService:
         # 按变幅从大到小排序
         sorted_items = sorted(groups.values(), key=lambda x: x[0], reverse=True)
         return [msg for _, msg in sorted_items]
+
+    def _generate_sell_csv(self, time_str):
+        """生成在售监控 CSV 文件，返回文件路径（只保留一个最新文件）"""
+        import csv
+        csv_dir = os.path.join(base_dir, "data", "sell_reports")
+        os.makedirs(csv_dir, exist_ok=True)
+        
+        # 固定文件名，每次覆盖
+        csv_filename = "sell_report_latest.csv"
+        csv_path = os.path.join(csv_dir, csv_filename)
+        
+        # 收集所有有在售状态的物品
+        rows = []
+        for item_id, state in self.sell_num_state.items():
+            trough = state.get("low", {})
+            trough_num = trough.get("num", 0)
+            trough_time = trough.get("time", "")
+            
+            curr_num = self.curr_sell_num.get(item_id, 0)
+            if curr_num == 0:
+                continue
+            
+            # 获取当前价格
+            curr_price = self.curr_price.get(item_id, 0)
+            
+            # 计算变化幅度
+            if trough_num and trough_num > 0:
+                change_percent = (curr_num - trough_num) / trough_num * 100
+            else:
+                change_percent = 0
+            
+            item_name = config.get_item_name(item_id)
+            
+            rows.append({
+                "id": item_id,
+                "名称": item_name,
+                "现在在售": curr_num,
+                "现在价格": curr_price if curr_price > 0 else "未知",
+                "波谷在售": trough_num,
+                "波谷在售时间": trough_time,
+                "变化幅度(%)": f"{change_percent:.1f}"
+            })
+        
+        if not rows:
+            return None
+        
+        # 按变化幅度排序
+        rows.sort(key=lambda x: float(x["变化幅度(%)"]), reverse=True)
+        
+        # 写入 CSV
+        with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
+            writer = csv.DictWriter(f, fieldnames=["id", "名称", "现在在售", "现在价格", "波谷在售", "波谷在售时间", "变化幅度(%)"])
+            writer.writeheader()
+            writer.writerows(rows)
+        
+        print(f"[SellScan] CSV 报告已生成: {csv_path}")
+        return csv_path
 
     # ========================
     # follow 持久化
