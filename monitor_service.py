@@ -924,25 +924,30 @@ class MonitorService:
         csv_filename = "sell_report_latest.csv"
         csv_path = os.path.join(csv_dir, csv_filename)
         
-        # 收集所有有在售状态的物品
+        # 只收集有变化的饰品（有波谷数据且变化幅度不为0）
         rows = []
         for item_id, state in self.sell_num_state.items():
             trough = state.get("low", {})
             trough_num = trough.get("num", 0)
             trough_time = trough.get("time", "")
             
+            # 没有波谷数据，跳过
+            if not trough_num or trough_num == 0:
+                continue
+            
             curr_num = self.curr_sell_num.get(item_id, 0)
             if curr_num == 0:
                 continue
             
+            # 计算变化幅度
+            change_percent = (curr_num - trough_num) / trough_num * 100
+            
+            # 变化幅度为0，跳过
+            if abs(change_percent) < 0.1:
+                continue
+            
             # 获取当前价格
             curr_price = self.curr_price.get(item_id, 0)
-            
-            # 计算变化幅度
-            if trough_num and trough_num > 0:
-                change_percent = (curr_num - trough_num) / trough_num * 100
-            else:
-                change_percent = 0
             
             item_name = config.get_item_name(item_id)
             
