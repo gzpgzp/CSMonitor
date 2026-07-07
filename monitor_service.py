@@ -924,9 +924,11 @@ class MonitorService:
         csv_filename = "sell_report_latest.csv"
         csv_path = os.path.join(csv_dir, csv_filename)
         
-        # 只收集有变化的饰品（有波谷数据且变化幅度不为0）
+        # 只收集有变化的饰品（有波谷数据且变化幅度超过阈值）
         rows = []
+        total_count = 0
         for item_id, state in self.sell_num_state.items():
+            total_count += 1
             trough = state.get("low", {})
             trough_num = trough.get("num", 0)
             trough_time = trough.get("time", "")
@@ -942,8 +944,8 @@ class MonitorService:
             # 计算变化幅度
             change_percent = (curr_num - trough_num) / trough_num * 100
             
-            # 变化幅度为0，跳过
-            if abs(change_percent) < 0.1:
+            # 只保留变化幅度超过阈值的饰品
+            if abs(change_percent) < self.sell_num_warning_percent * 100:
                 continue
             
             # 获取当前价格
@@ -960,6 +962,8 @@ class MonitorService:
                 "波谷在售时间": trough_time,
                 "变化幅度(%)": f"{change_percent:.1f}"
             })
+        
+        print(f"[SellScan] CSV 过滤: 总物品数={total_count}, 满足条件数={len(rows)}, 阈值={self.sell_num_warning_percent * 100}%")
         
         if not rows:
             return None

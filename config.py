@@ -18,6 +18,7 @@ MODIFIABLE_PARAMS = {
     "在售通知间隔": ("sell_num_time_interval",    int,   "在售数量通知最小间隔（秒）"),
     "波峰波谷阈值": ("change_percent",            float, "价格波峰波谷过滤阈值（如0.05表示5%）"),
     "上涨警告百分比": ("warning_percent",          float, "价格上涨突破告警百分比（如0.05表示5%）"),
+    "CSV变化阈值": ("csv_change_percent",         float, "在售监控CSV变化幅度阈值（如0.1表示10%）"),
 }
 
 def init_config():
