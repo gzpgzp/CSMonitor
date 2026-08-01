@@ -12,7 +12,7 @@ import monitor_service
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
 ws_url = "ws://127.0.0.1:3000/ws"
-token = "07xQUqq18.rLfo5h" 
+token = "d98579b2a45f" 
 price_monitor_groups = set()   # 价格监控群（接收涨幅/跌幅报告）
 sell_monitor_groups = set()    # 在售监控群（接收在售激增/锐减报告）
 self_id = "2092836515"
