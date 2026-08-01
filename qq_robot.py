@@ -12,7 +12,7 @@ import monitor_service
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
 ws_url = "ws://127.0.0.1:3000/ws"
-token = "d98579b2a45f" 
+token = "ewa_T-sHxWLWYOjX" # 这个是每个主机自己本地登录的onebot配置文件中的token，和webui登陆的token不一样，后续通过抓取配置方式来实现吧
 price_monitor_groups = set()   # 价格监控群（接收涨幅/跌幅报告）
 sell_monitor_groups = set()    # 在售监控群（接收在售激增/锐减报告）
 self_id = "2092836515"
